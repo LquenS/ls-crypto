@@ -1,8 +1,11 @@
 # ls-crypto
-Crypto Currency For QB-Core
+Crypto Currency for ESX & QB
 
 # Dependency
-https://github.com/qbcore-framework/mhacking
+Doesnt have any **dependency** like qb-crypto. Hacking stuff has been removed.
+
+# Support
+Just conversion of qb-crypto, this means we're not giving support for ls-crypto.
 
 # License
 
