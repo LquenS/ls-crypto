@@ -268,10 +268,3 @@ if Ticker.Enabled then
         end
     end)
 end
-
-RegisterCommand("givephone", function(src)
-    local Player = LS_CORE.Functions.GetPlayer(src)
-
-    print(json.encode(Player.DATA))
-    --exports["ls-phone"]:GivePhoneToPlayer(src)
-end)
