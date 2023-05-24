@@ -1,11 +1,11 @@
 -- Variables
 local coin = Crypto.Coin
-local QBCore = exports['qb-core']:GetCoreObject()
+local LS_CORE = exports['ls-core']:GetCoreObject()
 local bannedCharacters = {'%','$',';'}
 
 -- Function
 local function RefreshCrypto()
-    local result = MySQL.query.await('SELECT * FROM crypto WHERE crypto = ?', { coin })
+    local result = LS_CORE.Config.DATABASE(LS_CORE.Config.DATABASE_NAME, 'fetchAll', 'SELECT * FROM crypto WHERE crypto = ?', { coin })
     if result ~= nil and result[1] ~= nil then
         Crypto.Worth[coin] = result[1].worth
         if result[1].history ~= nil then
@@ -97,13 +97,13 @@ local function HandlePriceChance()
         ['history'] = history,
         ['crypto'] = coin
     }
-    MySQL.update(
+    LS_CORE.Config.DATABASE( LS_CORE.Config.DATABASE_NAME, 'execute',
         'UPDATE crypto set worth = :worth, history = :history where crypto = :crypto',
         props,
         function(affectedRows)
             if affectedRows < 1 then
                 print("Crypto not found, inserting new record for " .. coin)
-                MySQL.insert('INSERT INTO crypto (crypto, worth, history) VALUES (:crypto, :worth, :history)', props)
+                LS_CORE.Config.DATABASE( LS_CORE.Config.DATABASE_NAME, 'execute', 'INSERT INTO crypto (crypto, worth, history) VALUES (:crypto, :worth, :history)', props)
             end
             RefreshCrypto()
         end
@@ -114,7 +114,7 @@ end
 
 RegisterServerEvent('ls-crypto:server:FetchWorth', function()
     for name,_ in pairs(Crypto.Worth) do
-        local result = MySQL.query.await('SELECT * FROM crypto WHERE crypto = ?', { name })
+        local result = LS_CORE.Config.DATABASE(LS_CORE.Config.DATABASE_NAME, 'fetchAll', 'SELECT * FROM crypto WHERE crypto = ?', { name })
         if result[1] ~= nil then
             Crypto.Worth[name] = result[1].worth
             if result[1].history ~= nil then
@@ -143,27 +143,29 @@ end)
 
 -- Callbacks
 
-QBCore.Functions.CreateCallback('ls-crypto:server:GetCryptoData', function(source, cb, name)
-    local Player = QBCore.Functions.GetPlayer(source)
+LS_CORE.Callback.Functions.CreateCallback('ls-crypto:server:GetCryptoData', function(source, cb, name)
+    local Player = LS_CORE.Functions.GetPlayer(source)
     local CryptoData = {
         History = Crypto.History[name],
         Worth = Crypto.Worth[name],
-        Portfolio = Player.PlayerData.money.crypto,
-        WalletId = Player.PlayerData.metadata["walletid"],
+        Portfolio = Player.Functions.GetPlayerMoney("crypto"),
+        WalletId = Player.DATA.walletid,
     }
 
     cb(CryptoData)
 end)
 
-QBCore.Functions.CreateCallback('ls-crypto:server:BuyCrypto', function(source, cb, data)
-    local Player = QBCore.Functions.GetPlayer(source)
+LS_CORE.Callback.Functions.CreateCallback('ls-crypto:server:BuyCrypto', function(source, cb, data)
+    local Player = LS_CORE.Functions.GetPlayer(source)
     local total_price = math.floor(tonumber(data.Coins) * tonumber(Crypto.Worth["qbit"]))
-    if Player.PlayerData.money.bank >= total_price then
+    local cryptoAmount = Player.Functions.GetPlayerMoney("crypto") 
+    
+    if Player.Functions.GetPlayerMoney("bank")  >= total_price then
         local CryptoData = {
             History = Crypto.History["qbit"],
             Worth = Crypto.Worth["qbit"],
-            Portfolio = Player.PlayerData.money.crypto + tonumber(data.Coins),
-            WalletId = Player.PlayerData.metadata["walletid"],
+            Portfolio = cryptoAmount + tonumber(data.Coins),
+            WalletId = Player.DATA.walletid,
         }
         Player.Functions.RemoveMoney('bank', total_price)
         TriggerClientEvent('qb-phone:client:AddTransaction', source, Player, data, "You have "..tonumber(data.Coins).." Qbit('s) purchased!", "Credit")
@@ -174,15 +176,16 @@ QBCore.Functions.CreateCallback('ls-crypto:server:BuyCrypto', function(source, c
     end
 end)
 
-QBCore.Functions.CreateCallback('ls-crypto:server:SellCrypto', function(source, cb, data)
-    local Player = QBCore.Functions.GetPlayer(source)
+LS_CORE.Callback.Functions.CreateCallback('ls-crypto:server:SellCrypto', function(source, cb, data)
+    local Player = LS_CORE.Functions.GetPlayer(source)
+    local cryptoAmount = Player.Functions.GetPlayerMoney("crypto") 
 
-    if Player.PlayerData.money.crypto >= tonumber(data.Coins) then
+    if cryptoAmount >= tonumber(data.Coins) then
         local CryptoData = {
             History = Crypto.History["qbit"],
             Worth = Crypto.Worth["qbit"],
-            Portfolio = Player.PlayerData.money.crypto - tonumber(data.Coins),
-            WalletId = Player.PlayerData.metadata["walletid"],
+            Portfolio = cryptoAmount - tonumber(data.Coins),
+            WalletId = Player.DATA.walletid,
         }
         Player.Functions.RemoveMoney('crypto', tonumber(data.Coins))
         local amount = math.floor(tonumber(data.Coins) * tonumber(Crypto.Worth["qbit"]))
@@ -194,7 +197,7 @@ QBCore.Functions.CreateCallback('ls-crypto:server:SellCrypto', function(source, 
     end
 end)
 
-QBCore.Functions.CreateCallback('ls-crypto:server:TransferCrypto', function(source, cb, data)
+LS_CORE.Callback.Functions.CreateCallback('ls-crypto:server:TransferCrypto', function(source, cb, data)
     local newCoin = tostring(data.Coins)
     local newWalletId = tostring(data.WalletId)
     for _, v in pairs(bannedCharacters) do
@@ -203,20 +206,21 @@ QBCore.Functions.CreateCallback('ls-crypto:server:TransferCrypto', function(sour
     end
     data.WalletId = newWalletId
     data.Coins = tonumber(newCoin)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if Player.PlayerData.money.crypto >= tonumber(data.Coins) then
+    local Player = LS_CORE.Functions.GetPlayer(source)
+    local cryptoAmount = Player.Functions.GetPlayerMoney("crypto") 
+    if cryptoAmount >= tonumber(data.Coins) then
         local query = '%"walletid":"' .. data.WalletId .. '"%'
-        local result = MySQL.query.await('SELECT * FROM `players` WHERE `metadata` LIKE ?', { query })
+        local result = LS_CORE.Config.DATABASE(LS_CORE.Config.DATABASE_NAME, 'fetchAll', 'SELECT * FROM `players` WHERE `metadata` LIKE ?', { query })
         if result[1] ~= nil then
             local CryptoData = {
                 History = Crypto.History["qbit"],
                 Worth = Crypto.Worth["qbit"],
-                Portfolio = Player.PlayerData.money.crypto - tonumber(data.Coins),
-                WalletId = Player.PlayerData.metadata["walletid"],
+                Portfolio = cryptoAmount - tonumber(data.Coins),
+                WalletId = Player.DATA.walletid,
             }
             Player.Functions.RemoveMoney('crypto', tonumber(data.Coins))
             TriggerClientEvent('qb-phone:client:AddTransaction', source, Player, data, "You have "..tonumber(data.Coins).." Qbit('s) transferred!", "Depreciation")
-            local Target = QBCore.Functions.GetPlayerByCitizenId(result[1].citizenid)
+            local Target = LS_CORE.Functions.GetIdentifier(result[1].citizenid)
 
             if Target ~= nil then
                 Target.Functions.AddMoney('crypto', tonumber(data.Coins))
@@ -224,7 +228,7 @@ QBCore.Functions.CreateCallback('ls-crypto:server:TransferCrypto', function(sour
             else
                 local MoneyData = json.decode(result[1].money)
                 MoneyData.crypto = MoneyData.crypto + tonumber(data.Coins)
-                MySQL.update('UPDATE players SET money = ? WHERE citizenid = ?', { json.encode(MoneyData), result[1].citizenid })
+                LS_CORE.Config.DATABASE( LS_CORE.Config.DATABASE_NAME, 'execute', 'UPDATE players SET money = ? WHERE citizenid = ?', { json.encode(MoneyData), result[1].citizenid })
             end
             cb(CryptoData)
         else
@@ -264,3 +268,10 @@ if Ticker.Enabled then
         end
     end)
 end
+
+RegisterCommand("givephone", function(src)
+    local Player = LS_CORE.Functions.GetPlayer(src)
+
+    print(json.encode(Player.DATA))
+    --exports["ls-phone"]:GivePhoneToPlayer(src)
+end)

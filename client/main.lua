@@ -1,24 +1,7 @@
 -- Variables
-local QBCore = exports['qb-core']:GetCoreObject()
-local requiredItemsShowed = false
-local requiredItems = {[1] = {name = QBCore.Shared.Items["cryptostick"]["name"], image = QBCore.Shared.Items["cryptostick"]["image"]}}
+local QBCore = exports['ls-core']:GetCoreObject()
 
 -- Functions
-
-local function DrawText3Ds(coords, text)
-	SetTextScale(0.35, 0.35)
-    SetTextFont(4)
-    SetTextProportional(1)
-    SetTextColour(255, 255, 255, 215)
-    SetTextEntry("STRING")
-    SetTextCentre(true)
-    AddTextComponentString(text)
-    SetDrawOrigin(coords.x, coords.y, coords.z, 0)
-    DrawText(0.0, 0.0)
-    local factor = (string.len(text)) / 370
-    DrawRect(0.0, 0.0+0.0125, 0.017+ factor, 0.03, 0, 0, 0, 75)
-    ClearDrawOrigin()
-end
 
 local function SystemCrashCooldown()
 	CreateThread(function()
@@ -43,7 +26,7 @@ RegisterNetEvent('ls-crypto:client:SyncReboot', function()
 	SystemCrashCooldown()
 end)
 
-RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
+RegisterNetEvent('LS_CORE:PLAYER:CREATED', function()
 	TriggerServerEvent('ls-crypto:server:FetchWorth')
 	TriggerServerEvent('ls-crypto:server:GetRebootState')
 end)
